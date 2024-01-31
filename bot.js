@@ -5,16 +5,10 @@
 
 /////////////////////////////////////////////////////////////////////////////////
 
-require('dotenv').config(); // Загрузка переменных окружения из файла .env
-
 const TelegramBot = require('node-telegram-bot-api');
 
-
-// const token = process.env.BOT_TOKEN;
-// const adminChatId = process.env.ADMIN_CHAT_ID;
-
 const token = "6952852803:AAFQZ0vPJdCSyQj0YgATjsuu4cAISSvdVkA";
-const adminChatId = "387442030";
+const adminChatId = "423752273";
 
 const bot = new TelegramBot(token, { polling: true });
 let forwardingSessions = {};
