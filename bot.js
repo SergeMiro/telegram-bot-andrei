@@ -6,180 +6,219 @@
 /////////////////////////////////////////////////////////////////////////////////
 
 const TelegramBot = require('node-telegram-bot-api');
-
 const token = "6952852803:AAFQZ0vPJdCSyQj0YgATjsuu4cAISSvdVkA";
-const adminChatId = "423752273";
+const adminChatId = "387442030";
 
 const bot = new TelegramBot(token, { polling: true });
 let forwardingSessions = {};
-// Глобальная переменная для отслеживания статуса отправки заявки
 let applicationStatus = {};
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+////////////////// ФУНКЦИЯ И ДРУГИЕ ОБРАБОТЧИКИ ДЛЯ КОМАНД /////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+
+// bot.sendMessage(chatId, 'Команда не распознана 🤔, будьте внимательнее.');
+
+function toMenu() {
+	return {
+		reply_markup: {
+			keyboard: [
+				[{ text: 'Подать заявку 📃' }, { text: 'Ответы на вопросы (FAQ) 📖' }],
+				[{ text: 'Наш канал 📣' }, { text: 'Наш сайт 🌏' }],
+				[{ text: 'Связаться с нами 📱' }]
+			],
+			resize_keyboard: true
+		}
+	};
+}
+
+function toFaq() {
+	return {
+		text: 'У вас сложные вопросы? 😉 Скачайте наш FAQ [здесь](https://www.france-experience.fr/files/FAQ_France-Experience.pdf)',
+		parse_mode: 'Markdown'
+	};
+}
+
+function toChannel() {
+	return {
+		text: 'Подписывайтесь на наш канал! [Там много интересного :](https://t.me/frexperience)',
+		parse_mode: 'Markdown'
+	};
+}
+
+function toSite() {
+	return {
+		text: 'Посетите наш сайт [👇](https://france-experience.fr)',
+		parse_mode: 'Markdown'
+	};
+}
+///////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+
 
 bot.on('message', (msg) => {
 	const chatId = msg.chat.id;
+	const text = msg.text || '';
+	const fromId = msg.from.id.toString();
+	let userName = `${msg.from.first_name} ${msg.from.last_name}`.trim() || msg.from.username || 'пользователь';
 
-	if (chatId.toString() === adminChatId) {
-		const adminMessage = msg.text;
-		const userChatId = forwardingSessions[chatId];
-
-		if (userChatId) {
-			bot.sendMessage(userChatId, adminMessage, {
-				reply_markup: {
-					keyboard: [[{ text: 'Покинуть чат' }]],
-					resize_keyboard: true,
-					one_time_keyboard: false,
-				}
-			});
-			return;
+	// Если сообщение является командой '/start'
+	if (text && text.toLowerCase() === '/start') {
+		if (fromId === adminChatId) {
+			bot.sendMessage(chatId, 'Вы являетесь администратором данного чат-бота. Вам недоступны функции пользователя 😉');
+		} else {
+			bot.sendMessage(chatId, 'Выберите одну из опций :', toMenu());
 		}
-	}
-
-	if (msg.text === 'Связаться с нами 📱') {
+	} else if (text === 'Связаться с нами 📱') {
+		// Если пользователь выбрал опцию связи
+		bot.sendMessage(chatId, 'Вы уже изучили наш FAQ 📔 ? В нём вы найдете ответы на многие вопросы [⬇️](https://www.france-experience.fr/files/FAQ_France-Experience.pdf)', {
+			parse_mode: 'Markdown',
+			reply_markup: {
+				keyboard: [
+					[{ text: 'Написать нам ✍️' }],
+					[{ text: 'Назад ⬅️' }]
+				],
+				resize_keyboard: true,
+				one_time_keyboard: true
+			}
+		});
+	} else if (text === 'Написать нам ✍️') {
+		// Если пользователь хочет написать администратору
 		forwardingSessions[chatId] = adminChatId;
 		bot.sendMessage(chatId, 'Наш оператор ответит на ваше сообщение в ближайшее время. Пожалуйста, напишите ваш вопрос.', {
 			reply_markup: {
-				keyboard: [[{ text: 'Покинуть чат' }]],
+				keyboard: [[{ text: 'Покинуть чат 🚪' }]],
 				resize_keyboard: true,
 				one_time_keyboard: true,
 			}
 		});
-	} else if (msg.text === 'Покинуть чат') {
-		let userName = msg.from.username || `${msg.from.first_name} ${msg.from.last_name || ''}`.trim();
+	} else if (text === 'Покинуть чат 🚪') {
+		// let userName = msg.from.username || `${msg.from.first_name} ${msg.from.last_name || ''}`.trim();
 		bot.sendMessage(adminChatId, `${userName} покинул(a) чат`, {
 			reply_markup: {
 				inline_keyboard: [
-					[{ text: 'Восстановить чат', callback_data: `restore_${chatId}` }]
+					[{ text: 'Восстановить чат 🔄', callback_data: `restore_${chatId}` }]
 				]
 			}
 		});
-
 		delete forwardingSessions[chatId];
-		bot.sendMessage(chatId, 'Вы покинули чат.', {
-			reply_markup: {
-				keyboard: [
-					[{ text: 'Связаться с нами 📱' }],
-					[{ text: 'Подать заявку 📃' }],
-					[{ text: 'Наш канал 📣' }],
-				],
-				resize_keyboard: true,
-				one_time_keyboard: false,
-			}
-		});
-	} else if (forwardingSessions[chatId]) {
-		let userName = msg.from.username || `${msg.from.first_name} ${msg.from.last_name || ''}`.trim();
-		bot.sendMessage(adminChatId, `${userName}:\n${msg.text}`, {
-			reply_markup: {
-				inline_keyboard: [
-					[{ text: 'Ответить', callback_data: `reply_${chatId}` }]
-				]
-			}
-		});
-	} else {
-		handleRegularMessages(msg, chatId);
-	}
-});
-
-//////////////////////////////////////////////////////////////////////////////////////////////
-
-// Функция для обработки стандартных сообщений
-function handleRegularMessages(msg, chatId) {
-	let text = msg.text;
-
-	// Обработка команды "Назад"
-	if (text === 'Назад') {
-		// Сброс статуса подачи заявки, если он активен
-		if (applicationStatus[chatId]) {
-			applicationStatus[chatId] = null;
-		}
-
-		// Очистка сессии пересылки, если она активна
-		if (forwardingSessions[chatId]) {
-			delete forwardingSessions[chatId];
-		}
-
-		// Возвращение пользователя к основному меню
-		bot.sendMessage(chatId, 'Выберите одну из опций:', returnToMainMenu());
-		return;
-	}
-
-	// Проверяем, находится ли пользователь в процессе подачи заявки
-	if (applicationStatus[chatId] === 'awaiting_application') {
-		// Обработка текста заявки
-		bot.sendMessage(chatId, 'Ваша заявка успешно отправлена! France Experience свяжется с вами очень скоро.');
-		bot.sendMessage(adminChatId, `ЗАЯВКА от ${msg.from.username || msg.from.first_name}: \n\n${text}`, {
-			reply_markup: {
-				inline_keyboard: [
-					[{ text: 'Ответить', callback_data: `reply_${chatId}` }]
-				]
-			}
-		});
-		applicationStatus[chatId] = null;
-		return;
-	}
-
-	if (text === 'Подать заявку 📃') {
+		bot.sendMessage(chatId, 'Вы покинули чат.', toMenu());
+	} else if (text === 'Подать заявку 📃' && fromId !== adminChatId) {
 		applicationStatus[chatId] = 'awaiting_application';
-		let applicationInstructions = `Отправьте нам ваши данные и мы свяжемся с вами в ближайшее время.\n\n` +
-			`_Ваше имя и фамилия :_\n` +
-			`_Дата рождения :_\n` +
-			`_Страна :_\n` +
-			`_Город :_\n` +
-			`_Комментарий (вопрос) :_`;
+		let applicationInstructions = "Пожалуйста, предоставьте информацию о себе чтобы мы смогли обработать вашу заявку 💻 \n\n" +
+			"_Ваше имя и фамилия :_\n" +
+			"_Дата рождения :_\n" +
+			"_Страна :_\n" +
+			"_Город :_\n" +
+			"_Комментарий (вопрос) :_";
 		const options = {
 			parse_mode: 'Markdown',
 			reply_markup: {
 				keyboard: [
-					[{ text: 'Назад' }]
+					[{ text: 'Назад ⬅️' }]
 				],
 				resize_keyboard: true,
 				one_time_keyboard: false
 			}
 		};
 		bot.sendMessage(chatId, applicationInstructions, options);
-		return;
 	}
-
-	if (text === 'Наш канал 📣') {
-		text = 'Подписывайтесь на наш канал! [Там много интересного:](https://t.me/frexperience)';
-		bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-		return;
-	}
-
-	// Если команда не распознана, возвращаем пользователя к основному меню
-	const options = returnToMainMenu();
-	bot.sendMessage(chatId, 'Выберите одну из опций:', options);
-}
-
-function returnToMainMenu() {
-	return {
-		reply_markup: {
-			keyboard: [
-				[{ text: 'Связаться с нами 📱' }],
-				[{ text: 'Подать заявку 📃' }],
-				[{ text: 'Наш канал 📣' }]
-			],
-			resize_keyboard: true,
-			one_time_keyboard: false
+	// Если администратор отвечает пользователю и активируется сессия чата
+	else if (fromId === adminChatId && forwardingSessions[chatId]) {
+		const session = forwardingSessions[chatId];
+		if (session.awaitingReply || session.awaitingRestore) {
+			const userChatId = session.userChatId;
+			bot.sendMessage(userChatId, text, {
+				reply_markup: {
+					keyboard: [[{ text: 'Покинуть чат 🚪' }]],
+					resize_keyboard: true,
+					one_time_keyboard: false,
+				}
+			}).then(() => {
+				// Обновляем сессии после отправки сообщения
+				forwardingSessions[userChatId] = chatId;
+				delete forwardingSessions[chatId];
+			});
 		}
-	};
-}
+	}
 
+	else if (forwardingSessions[chatId]) {
+		// Убедитесь, что сообщение перенаправляется администратору
+		bot.sendMessage(forwardingSessions[chatId], `Сообщение : ${userName} \n${text}`, {
+			reply_markup: {
+				inline_keyboard: [
+					[{ text: 'Ответить ➡️', callback_data: `reply_${chatId}` }]
+				]
+			}
+		});
+	} else if (text === 'Назад ⬅️') {
+		// Сброс статуса подачи заявки, если он был установлен
+		if (applicationStatus[chatId] === 'awaiting_application') {
+			applicationStatus[chatId] = null;
+		}
+
+		// Сброс сессии чата, если она была установлена
+		if (forwardingSessions[chatId]) {
+			delete forwardingSessions[chatId];
+		}
+
+		bot.sendMessage(chatId, 'Вы вернулись в основное меню :', toMenu());
+		return; // Прекращаем дальнейшую обработку этого сообщения
+	}
+	else if (applicationStatus[chatId] === 'awaiting_application' && fromId !== adminChatId) {
+
+		// Обработка заявки, если сообщение не является "Назад ⬅️"
+		applicationStatus[chatId] = null; // Сбрасываем статус заявки
+		bot.sendMessage(chatId, 'Ваша заявка успешно отправлена 👍 France Experience свяжется с вами очень скоро 📨');
+		bot.sendMessage(adminChatId, `ЗАЯВКА : ${userName} \n${text}`, {
+			reply_markup: {
+				inline_keyboard: [
+					[{ text: 'Ответить ➡️', callback_data: `reply_${chatId}` }]
+				]
+			}
+		});
+		// Возврат в основное меню после отправки заявки
+		bot.sendMessage(chatId, 'Вы вернулись в основное меню :', toMenu());
+	} else if (forwardingSessions[chatId] && fromId !== adminChatId) {
+		// let userName = msg.from.username || `${msg.from.first_name} ${msg.from.last_name || ''}`.trim();
+		bot.sendMessage(adminChatId, `${userName}:\n${text}`, {
+			reply_markup: {
+				inline_keyboard: [[{ text: 'Ответить ➡️', callback_data: `reply_${chatId}` }]]
+			}
+		});
+	} else if (text === 'Ответы на вопросы (FAQ) 📖') {
+		const faqMessage = toFaq();
+		bot.sendMessage(chatId, faqMessage.text, { parse_mode: faqMessage.parse_mode });
+	}
+	else if (text === 'Наш канал 📣') {
+		const myChannel = toChannel();
+		bot.sendMessage(chatId, myChannel.text, { parse_mode: myChannel.parse_mode });
+	} else if (text === 'Наш сайт 🌏') {
+		const mySite = toSite();
+		bot.sendMessage(chatId, mySite.text, { parse_mode: mySite.parse_mode });
+	}
+});
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 bot.on('callback_query', (callbackQuery) => {
 	const adminId = callbackQuery.from.id.toString();
 	const data = callbackQuery.data;
+	const chatId = callbackQuery.message.chat.id; // ID чата администратора
 
 	if (data.startsWith('reply_') && adminId === adminChatId) {
+		const userChatId = data.split('_')[1]; // ID пользователя
+		// Устанавливаем сессию для ответа админа пользователю
+		forwardingSessions[adminChatId] = { userChatId, awaitingReply: true };
+		bot.sendMessage(adminChatId, 'Введите сообщение для ответа :');
+	} else if (data.startsWith('restore_') && adminId === adminChatId) {
 		const userChatId = data.split('_')[1];
-		forwardingSessions[adminChatId] = userChatId;
-		bot.sendMessage(adminChatId, 'Введите сообщение для ответа:');
-	}
-	else if (data.startsWith('restore_') && adminId === adminChatId) {
-		const userChatId = data.split('_')[1];
-		forwardingSessions[userChatId] = adminChatId;
-		forwardingSessions[adminChatId] = userChatId;
-		bot.sendMessage(adminChatId, 'Чат восстановлен. Можете отправить сообщение.');
+		// Помечаем сессию как ожидающую восстановления
+		forwardingSessions[adminChatId] = { userChatId, awaitingRestore: true };
+		// Убрали уведомление о восстановлении чата, чат восстановится после ответа админа
+		bot.sendMessage(adminChatId, 'Отправьте сообщение для восстановления чата.');
 	}
 });
-
